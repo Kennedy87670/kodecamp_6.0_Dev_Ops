@@ -1,0 +1,26 @@
+==================================
+ NETWORK HEALTH CHECK REPORT
+==================================
+
+1. SERVER INFORMATION
+Hostname: JOHNKENNEDY-2.local
+Current User: user
+Date & Time: Mon Jun  8 11:21:26 WAT 2026
+
+2. NETWORK INFORMATION
+IP Address: 192.168.100.90
+Default Gateway: 192.168.100.1
+DNS Server: 8.8.8.8
+
+3. INTERNET CONNECTIVITY
+Internet Connectivity: UP
+
+4. DNS RESOLUTION
+DNS Resolution: WORKING
+
+5. WEBSITE AVAILABILITY
+google.com : UP
+github.com : UP
+amazon.com : UP
+
+Report generated successfully.
