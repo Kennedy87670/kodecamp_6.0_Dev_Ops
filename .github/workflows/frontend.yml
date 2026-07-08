@@ -45,10 +45,15 @@ jobs:
         working-directory: assignment_3_CICD_Pipeline/Dream-Vacation-App/frontend
         env:
           REACT_APP_API_URL: http://localhost:3001
+          NODE_OPTIONS: --openssl-legacy-provider
         run: npm run build
 
       - name: Build Docker image
-        run: docker build --build-arg REACT_APP_API_URL=http://localhost:3001 -t dream-vacation-frontend:test assignment_3_CICD_Pipeline/Dream-Vacation-App/frontend
+        run: |
+          docker build \
+            --build-arg REACT_APP_API_URL=http://localhost:3001 \
+            -t dream-vacation-frontend:test \
+            assignment_3_CICD_Pipeline/Dream-Vacation-App/frontend
 
   push:
     needs: build-and-test
