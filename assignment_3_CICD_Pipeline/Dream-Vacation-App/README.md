@@ -4,6 +4,10 @@ A full-stack app where users build a list of countries they'd like to visit, wit
 
 **Stack:** React · Node.js/Express · PostgreSQL · Docker
 
+> **CI/CD Status**: ✅ GitHub Actions pipeline automated and verified. Every push triggers lint, test, and Docker image build/push.
+
+---
+
 ---
 
 ## Prerequisites
