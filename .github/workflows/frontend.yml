@@ -82,5 +82,5 @@ jobs:
             REACT_APP_API_URL=http://localhost:3001
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/dream-vacation-frontend:latest
-            ${{ secrets.DOCKER_USERNAME }}/dream-vacation-frontend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/kh-2026-frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/kh-2026-frontend:${{ github.sha }}

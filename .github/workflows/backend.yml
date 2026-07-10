@@ -69,5 +69,5 @@ jobs:
           context: assignment_3_CICD_Pipeline/Dream-Vacation-App/backend
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/dream-vacation-backend:latest
-            ${{ secrets.DOCKER_USERNAME }}/dream-vacation-backend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/kh-2026-backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/kh-2026-backend:${{ github.sha }}
