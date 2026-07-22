@@ -1,0 +1,41 @@
+# SSH Keys and Credentials
+*.pem
+dream-key.pem
+*.key
+.env
+.env.local
+.env.*.local
+
+# Deployment files
+DEPLOYMENT_GUIDE.md
+
+# Dependencies
+node_modules/
+package-lock.json
+.npm
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Docker
+.docker/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
