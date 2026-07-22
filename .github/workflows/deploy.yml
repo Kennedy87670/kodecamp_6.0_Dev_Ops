@@ -11,52 +11,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  wait-for-images:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install Docker CLI
-        run: sudo apt-get update && sudo apt-get install -y docker.io
-
-      - name: Wait for Docker images
-        run: |
-          max_attempts=30
-          attempt=0
-
-          echo "Waiting for backend image..."
-          while [ $attempt -lt $max_attempts ]; do
-            if docker pull ${{ secrets.DOCKER_USERNAME }}/kh-2026-backend:latest 2>/dev/null; then
-              echo "✓ Backend image found"
-              break
-            fi
-            attempt=$((attempt + 1))
-            echo "Attempt $attempt/$max_attempts: Image not yet available, waiting..."
-            sleep 10
-          done
-
-          attempt=0
-          echo "Waiting for frontend image..."
-          while [ $attempt -lt $max_attempts ]; do
-            if docker pull ${{ secrets.DOCKER_USERNAME }}/kh-2026-frontend:latest 2>/dev/null; then
-              echo "✓ Frontend image found"
-              break
-            fi
-            attempt=$((attempt + 1))
-            echo "Attempt $attempt/$max_attempts: Image not yet available, waiting..."
-            sleep 10
-          done
-
   deploy:
     name: Deploy to EC2
-    needs: wait-for-images
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
