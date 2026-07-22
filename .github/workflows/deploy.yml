@@ -62,8 +62,10 @@ jobs:
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         run: |
           ssh -i ~/.ssh/dream-key.pem "$EC2_USER@$EC2_HOST" \
+            DOCKER_USERNAME="$DOCKER_USERNAME" \
             'bash -s' <<'REMOTE'
           set -e
 
@@ -74,11 +76,11 @@ jobs:
           rm -f /tmp/app-deploy.tar.gz
 
           # Create .env file for docker-compose
-          cat > "$APP_DIR/.env" <<'ENV'
+          cat > "$APP_DIR/.env" <<EOF
           DOCKER_USERNAME=$DOCKER_USERNAME
           NODE_ENV=production
           REACT_APP_API_URL=http://localhost:3001
-          ENV
+          EOF
 
           REMOTE
 
@@ -99,14 +101,12 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         run: |
           ssh -i ~/.ssh/dream-key.pem "$EC2_USER@$EC2_HOST" \
+            DOCKER_USERNAME="$DOCKER_USERNAME" \
             'bash -s' <<'REMOTE'
           set -e
 
           APP_DIR="$HOME/dream-vacation"
           cd "$APP_DIR"
-
-          # Export Docker username for docker-compose
-          export DOCKER_USERNAME=$DOCKER_USERNAME
 
           echo "=== Docker Compose Config ==="
           docker compose config
