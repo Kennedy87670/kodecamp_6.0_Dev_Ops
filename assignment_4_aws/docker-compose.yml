@@ -1,0 +1,28 @@
+services:
+  backend:
+    image: ${DOCKER_USERNAME}/kh-2026-backend:latest
+    container_name: dream-vacation-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+    networks:
+      - app-network
+
+  frontend:
+    image: ${DOCKER_USERNAME}/kh-2026-frontend:latest
+    container_name: dream-vacation-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    environment:
+      - REACT_APP_API_URL=http://localhost:3001
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

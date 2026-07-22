@@ -1,0 +1,186 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assignment_4_aws/**'
+      - '.github/workflows/backend.yml'
+      - '.github/workflows/frontend.yml'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  wait-for-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Docker CLI
+        run: sudo apt-get update && sudo apt-get install -y docker.io
+
+      - name: Wait for Docker images
+        run: |
+          max_attempts=30
+          attempt=0
+
+          echo "Waiting for backend image..."
+          while [ $attempt -lt $max_attempts ]; do
+            if docker pull ${{ secrets.DOCKER_USERNAME }}/kh-2026-backend:latest 2>/dev/null; then
+              echo "✓ Backend image found"
+              break
+            fi
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt/$max_attempts: Image not yet available, waiting..."
+            sleep 10
+          done
+
+          attempt=0
+          echo "Waiting for frontend image..."
+          while [ $attempt -lt $max_attempts ]; do
+            if docker pull ${{ secrets.DOCKER_USERNAME }}/kh-2026-frontend:latest 2>/dev/null; then
+              echo "✓ Frontend image found"
+              break
+            fi
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt/$max_attempts: Image not yet available, waiting..."
+            sleep 10
+          done
+
+  deploy:
+    name: Deploy to EC2
+    needs: wait-for-images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/dream-key.pem
+          chmod 600 ~/.ssh/dream-key.pem
+
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Create deployment directory on EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/dream-key.pem "$EC2_USER@$EC2_HOST" \
+            "mkdir -p ~/dream-vacation && chmod 755 ~/dream-vacation"
+
+      - name: Copy docker-compose and code to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          tar \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.env' \
+            --exclude='assignment_3_CICD_Pipeline' \
+            --exclude='assignment_ Containerization' \
+            --exclude='.github' \
+            -czf /tmp/app-deploy.tar.gz assignment_4_aws/
+
+          scp \
+            -i ~/.ssh/dream-key.pem \
+            /tmp/app-deploy.tar.gz \
+            "$EC2_USER@$EC2_HOST:/tmp/app-deploy.tar.gz"
+
+      - name: Extract and setup on EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/dream-key.pem "$EC2_USER@$EC2_HOST" \
+            'bash -s' <<'REMOTE'
+          set -e
+
+          APP_DIR="$HOME/dream-vacation"
+
+          # Extract files
+          tar -xzf /tmp/app-deploy.tar.gz -C "$APP_DIR" --strip-components=1
+          rm -f /tmp/app-deploy.tar.gz
+
+          # Create .env file for docker-compose
+          cat > "$APP_DIR/.env" <<'ENV'
+          DOCKER_USERNAME=$DOCKER_USERNAME
+          NODE_ENV=production
+          REACT_APP_API_URL=http://localhost:3001
+          ENV
+
+          REMOTE
+
+      - name: Login to Docker Hub on EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+        run: |
+          ssh -i ~/.ssh/dream-key.pem "$EC2_USER@$EC2_HOST" \
+            "echo '$DOCKER_TOKEN' | docker login -u '$DOCKER_USERNAME' --password-stdin"
+
+      - name: Deploy with Docker Compose
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        run: |
+          ssh -i ~/.ssh/dream-key.pem "$EC2_USER@$EC2_HOST" \
+            'bash -s' <<'REMOTE'
+          set -e
+
+          APP_DIR="$HOME/dream-vacation"
+          cd "$APP_DIR"
+
+          # Export Docker username for docker-compose
+          export DOCKER_USERNAME=$DOCKER_USERNAME
+
+          echo "=== Docker Compose Config ==="
+          docker compose config
+
+          echo "=== Pulling latest images ==="
+          docker compose pull
+
+          echo "=== Starting containers ==="
+          docker compose up -d --remove-orphans
+
+          echo "=== Container status ==="
+          docker compose ps
+
+          echo "=== Checking listening ports ==="
+          sudo ss -lntp | grep -E ':(80|3001)' || echo "Ports not yet listening"
+
+          echo "=== Application logs ==="
+          sleep 5
+          docker compose logs --tail=50
+
+          REMOTE
+
+      - name: Verify deployment
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          echo "✓ Deployment complete!"
+          echo ""
+          echo "Access your application at: http://${{ secrets.EC2_HOST }}"
+          echo ""
+          echo "Backend API: http://${{ secrets.EC2_HOST }}:3001"
+          echo "Frontend: http://${{ secrets.EC2_HOST }}"
