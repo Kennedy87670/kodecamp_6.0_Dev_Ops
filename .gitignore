@@ -9,6 +9,13 @@ dream-key.pem
 # Deployment files
 DEPLOYMENT_GUIDE.md
 
+# Terraform local state and provider files
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+
 # Dependencies
 node_modules/
 package-lock.json

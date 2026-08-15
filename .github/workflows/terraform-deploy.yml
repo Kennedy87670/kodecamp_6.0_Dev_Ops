@@ -1,0 +1,227 @@
+name: Assignment 5 Terraform Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assignment_3_CICD_Pipeline/Dream-Vacation-App/backend/**'
+      - 'assignment_3_CICD_Pipeline/Dream-Vacation-App/frontend/**'
+      - 'assignment_5_terraform/**'
+      - '.github/workflows/terraform-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Build and push backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: assignment_3_CICD_Pipeline/Dream-Vacation-App/backend/package-lock.json
+
+      - name: Test backend
+        working-directory: assignment_3_CICD_Pipeline/Dream-Vacation-App/backend
+        run: |
+          npm ci
+          npm test --if-present
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: assignment_3_CICD_Pipeline/Dream-Vacation-App/backend
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/kh-2026-backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/kh-2026-backend:${{ github.sha }}
+
+  frontend:
+    name: Build and push frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: assignment_3_CICD_Pipeline/Dream-Vacation-App/frontend/package-lock.json
+
+      - name: Test frontend
+        working-directory: assignment_3_CICD_Pipeline/Dream-Vacation-App/frontend
+        run: |
+          npm ci
+          CI=true npm test -- --watchAll=false --passWithNoTests
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: assignment_3_CICD_Pipeline/Dream-Vacation-App/frontend
+          build-args: |
+            REACT_APP_API_URL=.
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/kh-2026-frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/kh-2026-frontend:${{ github.sha }}
+
+  terraform:
+    name: Provision AWS with Terraform
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    outputs:
+      ec2_public_ip: ${{ steps.outputs.outputs.ec2_public_ip }}
+    defaults:
+      run:
+        working-directory: assignment_5_terraform/terraform
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      TF_VAR_ec2_public_key: ${{ secrets.TF_VAR_ec2_public_key }}
+      TF_VAR_alarm_email: ${{ secrets.TF_VAR_alarm_email }}
+      TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive
+
+      - name: Initialize Terraform state
+        run: |
+          terraform init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="region=${AWS_REGION}"
+
+      - name: Validate Terraform
+        run: terraform validate
+
+      - name: Plan infrastructure
+        run: terraform plan -out=tfplan
+
+      - name: Apply infrastructure
+        run: terraform apply -auto-approve tfplan
+
+      - name: Export Terraform outputs
+        id: outputs
+        run: echo "ec2_public_ip=$(terraform output -raw ec2_public_ip)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy application to EC2
+    needs: terraform
+    runs-on: ubuntu-latest
+    env:
+      EC2_HOST: ${{ needs.terraform.outputs.ec2_public_ip }}
+      EC2_USER: ubuntu
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH key
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/dream-assignment-5.pem
+          chmod 600 ~/.ssh/dream-assignment-5.pem
+
+      - name: Wait for EC2 SSH
+        run: |
+          for attempt in {1..30}; do
+            if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 \
+              -i ~/.ssh/dream-assignment-5.pem "$EC2_USER@$EC2_HOST" 'echo SSH ready'; then
+              exit 0
+            fi
+            echo "Waiting for SSH (attempt $attempt/30)..."
+            sleep 10
+          done
+          echo "EC2 did not become reachable over SSH in time."
+          exit 1
+
+      - name: Wait for Docker Compose installation
+        run: |
+          for attempt in {1..30}; do
+            if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 \
+              -i ~/.ssh/dream-assignment-5.pem "$EC2_USER@$EC2_HOST" \
+              'docker compose version'; then
+              exit 0
+            fi
+            echo "Waiting for cloud-init to install Docker (attempt $attempt/30)..."
+            sleep 10
+          done
+          echo "Docker Compose was not installed in time. Check /var/log/cloud-init-output.log on EC2."
+          exit 1
+
+      - name: Copy deployment files
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/dream-assignment-5.pem \
+            "$EC2_USER@$EC2_HOST" 'mkdir -p ~/dream-vacation/db'
+          scp -o StrictHostKeyChecking=accept-new -i ~/.ssh/dream-assignment-5.pem \
+            assignment_5_terraform/docker-compose.yml \
+            assignment_5_terraform/nginx.conf \
+            "$EC2_USER@$EC2_HOST:~/dream-vacation/"
+          scp -o StrictHostKeyChecking=accept-new -i ~/.ssh/dream-assignment-5.pem \
+            assignment_5_terraform/db/init.sql \
+            "$EC2_USER@$EC2_HOST:~/dream-vacation/db/init.sql"
+
+      - name: Create runtime environment
+        run: |
+          POSTGRES_PASSWORD_B64="$(printf '%s' "$POSTGRES_PASSWORD" | base64 -w 0)"
+          ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/dream-assignment-5.pem \
+            "$EC2_USER@$EC2_HOST" \
+            "DOCKER_USERNAME='$DOCKER_USERNAME' IMAGE_TAG='$IMAGE_TAG' POSTGRES_PASSWORD_B64='$POSTGRES_PASSWORD_B64' bash -s" <<'REMOTE'
+          set -euo pipefail
+          APP_DIR="$HOME/dream-vacation"
+          POSTGRES_PASSWORD="$(printf '%s' "$POSTGRES_PASSWORD_B64" | base64 --decode)"
+          umask 077
+          cat > "$APP_DIR/.env" <<EOF
+          DOCKER_USERNAME=$DOCKER_USERNAME
+          IMAGE_TAG=$IMAGE_TAG
+          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+          EOF
+          REMOTE
+
+      - name: Log in to Docker Hub on EC2
+        run: |
+          printf '%s' "$DOCKER_TOKEN" | ssh -o StrictHostKeyChecking=accept-new \
+            -i ~/.ssh/dream-assignment-5.pem "$EC2_USER@$EC2_HOST" \
+            "docker login --username '$DOCKER_USERNAME' --password-stdin"
+
+      - name: Pull and start services
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/dream-assignment-5.pem \
+            "$EC2_USER@$EC2_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd "$HOME/dream-vacation"
+          docker compose pull
+          docker compose up -d --remove-orphans
+          docker compose ps
+          REMOTE
+
+      - name: Verify public application
+        run: curl --fail --retry 12 --retry-delay 5 --retry-connrefused "http://$EC2_HOST"
