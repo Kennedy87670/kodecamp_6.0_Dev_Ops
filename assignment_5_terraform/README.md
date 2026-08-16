@@ -52,15 +52,15 @@ The backend keeps state at `assignment-5/terraform.tfstate` and uses S3 native s
 
 Configure these repository Actions secrets before running the workflow:
 
-| Secret | Purpose |
-| --- | --- |
-| `DOCKER_USERNAME`, `DOCKER_TOKEN` | Docker Hub image publishing and EC2 image pulls |
-| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` | Dedicated IAM credentials and `us-east-1` region |
-| `TF_STATE_BUCKET` | Pre-created, versioned S3 Terraform-state bucket |
-| `TF_VAR_ec2_public_key` | Public half of a new Assignment 5 SSH key pair |
-| `EC2_SSH_KEY` | Private half of the same SSH key pair |
-| `POSTGRES_PASSWORD` | URL-safe PostgreSQL password (letters, numbers, `_`, or `-`) |
-| `TF_VAR_alarm_email` | Email address receiving CloudWatch notifications |
+| Secret                                                     | Purpose                                                      |
+| ---------------------------------------------------------- | ------------------------------------------------------------ |
+| `DOCKER_USERNAME`, `DOCKER_TOKEN`                          | Docker Hub image publishing and EC2 image pulls              |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` | Dedicated IAM credentials and `us-east-1` region             |
+| `TF_STATE_BUCKET`                                          | Pre-created, versioned S3 Terraform-state bucket             |
+| `TF_VAR_ec2_public_key`                                    | Public half of a new Assignment 5 SSH key pair               |
+| `EC2_SSH_KEY`                                              | Private half of the same SSH key pair                        |
+| `POSTGRES_PASSWORD`                                        | URL-safe PostgreSQL password (letters, numbers, `_`, or `-`) |
+| `TF_VAR_alarm_email`                                       | Email address receiving CloudWatch notifications             |
 
 Generate the dedicated SSH key pair locally:
 
@@ -105,12 +105,12 @@ terraform destroy
 
 Add the following screenshots to [`images/`](./images/) after deployment:
 
-| Evidence | Suggested filename |
-| --- | --- |
-| Terraform-created VPC and subnet | `vpc-subnet.png` |
-| Running `t3.micro` EC2 instance | `ec2-instance.png` |
-| Working browser application | `application.png` |
-| CloudWatch CPU graph and high-CPU alarm | `cloudwatch.png` |
+| Evidence                                     | Suggested filename   |
+| -------------------------------------------- | -------------------- |
+| Terraform-created VPC and subnet             | `vpc-subnet.png`     |
+| Running `t3.micro` EC2 instance              | `ec2-instance.png`   |
+| Working browser application                  | `application.png`    |
+| CloudWatch CPU graph and high-CPU alarm      | `cloudwatch.png`     |
 | Successful Terraform and deployment workflow | `github-actions.png` |
 
 Before taking the app screenshot, add, list, and delete a destination in the browser to verify the frontend, API proxy, backend, and database work together.
