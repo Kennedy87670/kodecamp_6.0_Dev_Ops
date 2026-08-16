@@ -8,6 +8,9 @@ dream-key.pem
 
 # Deployment files
 DEPLOYMENT_GUIDE.md
+assignment_5_terraform/ASSIGNMENT_5_GUIDE.md
+assignment_5_terraform/QUICK_REFERENCE.md
+assignment_5_terraform/PREREQUISITES_CHECK.md
 
 # Terraform local state and provider files
 .terraform/
