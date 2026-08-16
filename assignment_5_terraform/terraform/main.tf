@@ -150,7 +150,7 @@ resource "aws_instance" "dream_server" {
 
   root_block_device {
     volume_type = "gp3"
-    volume_size = 8
+    volume_size = 30
   }
 
   tags = {
