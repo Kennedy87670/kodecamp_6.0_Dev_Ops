@@ -18,6 +18,14 @@ echo "deb [arch=${ARCHITECTURE} signed-by=/etc/apt/keyrings/docker.asc] https://
 apt-get update
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 systemctl enable --now docker
+
+# Add ubuntu user to docker group
 usermod -aG docker ubuntu
+
+# Apply group changes immediately for current session
+newgrp docker
+
+# Fix docker socket permissions just in case
+chmod 666 /var/run/docker.sock
 
 install -d -o ubuntu -g ubuntu -m 0755 /home/ubuntu/dream-vacation
