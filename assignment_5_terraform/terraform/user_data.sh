@@ -22,10 +22,15 @@ systemctl enable --now docker
 # Add ubuntu user to docker group
 usermod -aG docker ubuntu
 
-# Apply group changes immediately for current session
-newgrp docker
+# Make docker socket accessible to docker group members
+chmod 660 /var/run/docker.sock
 
-# Fix docker socket permissions just in case
-chmod 666 /var/run/docker.sock
+# Allow ubuntu to use sudo with docker without password
+echo 'ubuntu ALL=(ALL) NOPASSWD: /usr/bin/docker, /usr/bin/docker-compose, /usr/bin/docker compose' >> /etc/sudoers.d/docker
+
+# Wait for docker to be ready
+sleep 5
+systemctl restart docker
+sleep 3
 
 install -d -o ubuntu -g ubuntu -m 0755 /home/ubuntu/dream-vacation
